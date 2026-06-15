@@ -174,18 +174,21 @@ const game = new TetrisGame({
     elements.score.textContent = stats.score;
     elements.lines.textContent = stats.lines;
     elements.combo.textContent = stats.combo;
+    const setStartState = (text, icon) => {
+      elements.gameStatus.textContent = text;
+      elements.startBtn.textContent = icon;
+      elements.startBtn.setAttribute('aria-label', text);
+      elements.startBtn.title = text;
+    };
+
     if (stats.gameOver) {
-      elements.gameStatus.textContent = 'Партия закончена';
-      elements.startBtn.textContent = 'Снова';
+      setStartState('Снова', '▶');
     } else if (stats.paused) {
-      elements.gameStatus.textContent = 'Пауза';
-      elements.startBtn.textContent = 'Продолжить';
+      setStartState('Продолжить', '▶');
     } else if (stats.running) {
-      elements.gameStatus.textContent = 'Игра идёт';
-      elements.startBtn.textContent = 'Пауза';
+      setStartState('Пауза', 'Ⅱ');
     } else {
-      elements.gameStatus.textContent = 'Готов к игре';
-      elements.startBtn.textContent = 'Старт';
+      setStartState('Старт', '▶');
     }
   },
   onCoins: (_coins, _cleared, multiplier) => {
