@@ -2,82 +2,94 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#07111f" />
-    <title>TetraPet Aquarium</title>
+    <title>TETRAPET</title>
     <link rel="stylesheet" href="./styles.css" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <p class="eyebrow">Telegram Mini Game</p>
-          <h1>TetraPet</h1>
-        </div>
-        <div class="topbar-actions">
-          <span class="storage-badge" id="storageStatus" title="Состояние сохранения">localStorage</span>
-          <div class="wallet" aria-label="Монетки">
-            <span class="coin">◈</span>
-            <strong id="coins">0</strong>
-          </div>
+    <div class="app-shell is-game-tab">
+      <header class="app-header">
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Меню">☰</button>
+        <h1>TETRAPET</h1>
+        <div class="wallet" aria-label="Монетки">
+          <span class="coin">◈</span>
+          <strong id="coins">0</strong>
         </div>
       </header>
 
-      <main class="layout">
-        <section class="panel game-panel" data-tab-panel="game">
-          <div class="game-toolbar">
-            <div class="game-title">
-              <p class="eyebrow">Тетрис-аквариум</p>
-              <h2 id="gameStatus">Готов к игре</h2>
-            </div>
-            <div class="game-actions">
-              <button class="primary-btn" id="startBtn">Старт</button>
-              <button class="ghost-btn" id="resetBtn" title="Сбросить текущую партию">Сброс</button>
-            </div>
+      <div class="menu-drawer" id="menuDrawer" hidden>
+        <div class="menu-card">
+          <div class="menu-card-head">
+            <strong>TETRAPET</strong>
+            <button class="icon-btn" id="closeMenuBtn" type="button" aria-label="Закрыть меню">×</button>
           </div>
 
-          <div class="game-hud" aria-label="Статистика тетриса">
-            <div class="hud-stat"><span>Очки</span><strong id="score">0</strong></div>
-            <div class="hud-stat"><span>Линии</span><strong id="lines">0</strong></div>
-            <div class="hud-stat"><span>Комбо</span><strong id="combo">0</strong></div>
-            <div class="hud-stat"><span>Рекорд</span><strong id="bestScore">0</strong></div>
-            <div class="hud-next">
-              <span>NEXT</span>
-              <canvas id="nextCanvas" width="64" height="64" aria-label="Следующая фигура"></canvas>
-            </div>
+          <div class="menu-tabs" aria-label="Разделы игры">
+            <button class="active" data-tab="game" type="button">▦ Тетрис</button>
+            <button data-tab="pet" type="button">◌ Питомец</button>
+            <button data-tab="shop" type="button">◈ Магазин</button>
           </div>
 
-          <div class="game-stage">
-            <canvas id="gameCanvas" width="240" height="480" aria-label="Игровое поле тетриса"></canvas>
-            <p class="touch-hint" id="touchHint">Тап — поворот · веди вбок — движение · длинный свайп вниз — бросок</p>
+          <div class="menu-section">
+            <span class="storage-badge" id="storageStatus" title="Состояние сохранения">localStorage</span>
           </div>
 
-          <div class="last-run" id="lastRunResult" hidden></div>
-
-          <div class="game-settings" aria-label="Мини-настройки управления">
+          <div class="menu-section game-settings" aria-label="Мини-настройки управления">
             <button id="toggleControlsBtn" type="button">Кнопки: выкл</button>
             <button id="invertControlsBtn" type="button">Инверсия: выкл</button>
             <button id="touchControlsBtn" type="button">Тач: вкл</button>
             <button id="swipeDropBtn" type="button">Свайп вниз: вкл</button>
           </div>
+        </div>
+      </div>
+
+      <main class="layout">
+        <section class="panel game-panel" data-tab-panel="game">
+          <span class="sr-only" id="gameStatus" aria-live="polite">Готов к игре</span>
+
+          <div class="game-hud" aria-label="Статистика тетриса">
+            <div class="hud-stats">
+              <div class="hud-stat"><span>Очки</span><strong id="score">0</strong></div>
+              <div class="hud-stat"><span>Лин</span><strong id="lines">0</strong></div>
+              <div class="hud-stat"><span>Комбо</span><strong id="combo">0</strong></div>
+              <div class="hud-stat"><span>Рек</span><strong id="bestScore">0</strong></div>
+            </div>
+
+            <div class="hud-actions" aria-label="Управление партией">
+              <button class="primary-btn" id="startBtn" type="button">Старт</button>
+              <button class="ghost-btn reset-btn" id="resetBtn" type="button" title="Сбросить текущую партию">↻</button>
+            </div>
+
+            <div class="hud-next" aria-label="Следующая фигура">
+              <span>Next</span>
+              <canvas id="nextCanvas" width="72" height="72" aria-label="Следующая фигура"></canvas>
+            </div>
+          </div>
+
+          <div class="game-stage">
+            <canvas id="gameCanvas" width="240" height="480" aria-label="Игровое поле тетриса"></canvas>
+            <p class="touch-hint" id="touchHint">Тап — поворот · свайп вбок — движение · уверенный свайп вниз — сброс</p>
+            <div class="last-run" id="lastRunResult" hidden></div>
+          </div>
 
           <div class="controls" id="controlsPanel" aria-label="Запасные кнопки управления" hidden>
-            <button data-action="left">←</button>
-            <button data-action="rotate">↻</button>
-            <button data-action="right">→</button>
-            <button data-action="down">↓</button>
-            <button data-action="drop" class="wide">Бросить вниз</button>
+            <button data-action="left" type="button">←</button>
+            <button data-action="rotate" type="button">↻</button>
+            <button data-action="right" type="button">→</button>
+            <button data-action="down" type="button">↓</button>
+            <button data-action="drop" class="wide" type="button">Бросить вниз</button>
           </div>
         </section>
 
         <section class="panel pet-panel" data-tab-panel="pet" hidden>
           <div class="screen-title">
             <div>
-              <p class="eyebrow">Питомец в телефоне</p>
+              <p class="eyebrow">Питомец</p>
               <h2 id="petName">Бульк</h2>
             </div>
-            <button class="ghost-btn" id="renameBtn">Имя</button>
+            <button class="ghost-btn" id="renameBtn" type="button">Имя</button>
           </div>
 
           <div class="offline-notice" id="offlineNotice" hidden></div>
@@ -96,24 +108,24 @@
             </div>
             <div class="pet-thought" id="petThought">сыграй пару линий?</div>
             <div class="pet-death-overlay" id="petDeathOverlay" hidden>
-              <strong>Аквариум опустел</strong>
-              <p>Питомец не пережил долгий критический уход. Можно начать новую жизнь.</p>
-              <button class="primary-btn" id="newPetBtn">Новый питомец</button>
+              <strong>Питомец не выжил</strong>
+              <p>Можно начать новую жизнь. Монеты и рекорд сохранятся.</p>
+              <button class="primary-btn" id="newPetBtn" type="button">Новый питомец</button>
             </div>
           </div>
 
           <div class="meters">
-            <label>Сытость <meter id="hunger" min="0" max="100" low="30" high="70" optimum="85"></meter><span id="hungerText">0</span></label>
-            <label>Настроение <meter id="mood" min="0" max="100" low="30" high="70" optimum="85"></meter><span id="moodText">0</span></label>
-            <label>Чистота <meter id="clean" min="0" max="100" low="30" high="70" optimum="85"></meter><span id="cleanText">0</span></label>
-            <label>Энергия <meter id="energy" min="0" max="100" low="25" high="70" optimum="85"></meter><span id="energyText">0</span></label>
+            <label>Сытость <meter id="hunger" min="0" max="100"></meter><span id="hungerText">0</span></label>
+            <label>Настроение <meter id="mood" min="0" max="100"></meter><span id="moodText">0</span></label>
+            <label>Чистота <meter id="clean" min="0" max="100"></meter><span id="cleanText">0</span></label>
+            <label>Энергия <meter id="energy" min="0" max="100"></meter><span id="energyText">0</span></label>
           </div>
 
           <div class="action-grid" id="petActions">
-            <button id="feedBtn">Покормить</button>
-            <button id="cleanBtn">Почистить</button>
-            <button id="playBtn">Поиграть</button>
-            <button id="sleepBtn">Сон</button>
+            <button id="feedBtn" type="button">Покормить</button>
+            <button id="cleanBtn" type="button">Почистить</button>
+            <button id="playBtn" type="button">Поиграть</button>
+            <button id="sleepBtn" type="button">Сон</button>
           </div>
         </section>
 
@@ -127,12 +139,6 @@
           <div class="shop-list" id="shopList"></div>
         </section>
       </main>
-
-      <nav class="tabbar" aria-label="Разделы игры">
-        <button class="active" data-tab="game">▦ Тетрис</button>
-        <button data-tab="pet">◌ Питомец</button>
-        <button data-tab="shop">◈ Магазин</button>
-      </nav>
     </div>
 
     <template id="shopItemTemplate">
@@ -142,7 +148,7 @@
           <h3></h3>
           <p></p>
         </div>
-        <button></button>
+        <button type="button"></button>
       </article>
     </template>
 

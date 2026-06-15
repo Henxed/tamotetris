@@ -32,6 +32,10 @@ if (tg) {
 
 const elements = {
   coins: document.querySelector('#coins'),
+  appShell: document.querySelector('.app-shell'),
+  menuBtn: document.querySelector('#menuBtn'),
+  closeMenuBtn: document.querySelector('#closeMenuBtn'),
+  menuDrawer: document.querySelector('#menuDrawer'),
   storageStatus: document.querySelector('#storageStatus'),
   score: document.querySelector('#score'),
   lines: document.querySelector('#lines'),
@@ -143,6 +147,14 @@ function fullRender() {
   renderShop(elements.shopList, notify, fullRender);
 }
 
+function closeMenu() {
+  if (elements.menuDrawer) elements.menuDrawer.hidden = true;
+}
+
+function openMenu() {
+  if (elements.menuDrawer) elements.menuDrawer.hidden = false;
+}
+
 function selectTab(tabName) {
   document.querySelectorAll('[data-tab]').forEach((item) => {
     item.classList.toggle('active', item.dataset.tab === tabName);
@@ -150,6 +162,8 @@ function selectTab(tabName) {
   document.querySelectorAll('[data-tab-panel]').forEach((panel) => {
     panel.hidden = panel.dataset.tabPanel !== tabName;
   });
+  elements.appShell?.classList.toggle('is-game-tab', tabName === 'game');
+  closeMenu();
   fullRender();
 }
 
@@ -375,6 +389,12 @@ document.querySelector('#newPetBtn').addEventListener('click', () => {
   haptic('heavy');
   fullRender();
   notify('Новый питомец появился в аквариуме.');
+});
+
+elements.menuBtn?.addEventListener('click', openMenu);
+elements.closeMenuBtn?.addEventListener('click', closeMenu);
+elements.menuDrawer?.addEventListener('click', (event) => {
+  if (event.target === elements.menuDrawer) closeMenu();
 });
 
 document.querySelectorAll('[data-tab]').forEach((tab) => {

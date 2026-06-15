@@ -1,6 +1,6 @@
-# TetraPet Aquarium
+# TETRAPET
 
-Telegram Mini App: тетрис + тамагочи в стиле ретро-аквариума.
+Telegram Mini App: полноэкранный мобильный тетрис + тамагочи-питомец в аквариуме.
 
 ## Что уже есть
 
@@ -38,7 +38,7 @@ Telegram.WebApp.CloudStorage.setItem('tetrapet_save_v1', JSON.stringify(state))
 
 Если игра запущена не внутри Telegram или CloudStorage недоступен, используется обычный `localStorage`.
 
-В шапке игры есть бейдж:
+В меню игры есть бейдж:
 
 - `☁ Telegram Cloud` — сейв идёт в Telegram CloudStorage.
 - `localStorage` — сейв только локальный, между устройствами не синхронизируется.
