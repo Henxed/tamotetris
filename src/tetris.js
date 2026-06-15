@@ -68,6 +68,7 @@ export class TetrisGame {
     this.score = 0;
     this.lines = 0;
     this.combo = 0;
+    this.earnedCoins = 0;
     this.dropCounter = 0;
     this.dropInterval = 850;
     this.lastTime = 0;
@@ -80,17 +81,23 @@ export class TetrisGame {
   }
 
   start() {
-    if (this.running) return;
     if (this.gameOver) this.reset();
+    if (this.running && this.paused) {
+      this.togglePause();
+      return;
+    }
+    if (this.running) return;
     this.running = true;
     this.paused = false;
     this.lastTime = 0;
+    this.emitStats();
     requestAnimationFrame((time) => this.loop(time));
   }
 
   togglePause() {
-    if (!this.running) return;
+    if (!this.running || this.gameOver) return;
     this.paused = !this.paused;
+    this.emitStats();
     if (!this.paused) requestAnimationFrame((time) => this.loop(time));
     this.draw();
   }
@@ -221,14 +228,14 @@ export class TetrisGame {
     this.dropInterval = Math.max(250, 850 - Math.floor(this.lines / 8) * 58);
 
     const pet = getState().pet;
-    const petCareBonus = pet.hunger > 55 && pet.mood > 55 && pet.clean > 55 ? 1 : 0;
+    const petCareBonus = pet.alive && pet.hunger > 55 && pet.mood > 55 && pet.clean > 55 ? 1 : 0;
     const baseCoins = [0, 2, 5, 9, 16][cleared] || cleared * 4;
     const comboCoins = Math.floor(this.combo / 2);
     const buffMultiplier = getActiveBuff() === 'bubble_fever' ? 2 : 1;
     const shellBonus = getState().ownedDecor.includes('retro_shell') && cleared === 4 ? 1 : 0;
     const coins = (baseCoins + comboCoins + petCareBonus + shellBonus) * buffMultiplier;
 
-    addCoins(coins);
+    this.earnedCoins += addCoins(coins);
     mutatePet({ mood: 1.5 + cleared, energy: -0.5, hunger: -0.6, clean: -0.3 });
     this.onCoins?.(coins, cleared, buffMultiplier);
   }
@@ -245,10 +252,12 @@ export class TetrisGame {
 
   endGame() {
     this.running = false;
+    this.paused = false;
     this.gameOver = true;
     recordGame(this.score, this.lines);
     mutatePet({ mood: this.lines > 8 ? 6 : -4, energy: -4, hunger: -2 });
-    this.onGameOver?.({ score: this.score, lines: this.lines });
+    this.emitStats();
+    this.onGameOver?.({ score: this.score, lines: this.lines, coins: this.earnedCoins });
     this.draw();
   }
 
@@ -257,6 +266,7 @@ export class TetrisGame {
       score: this.score,
       lines: this.lines,
       combo: this.combo,
+      coins: this.earnedCoins,
       running: this.running,
       paused: this.paused,
       gameOver: this.gameOver,
@@ -315,7 +325,8 @@ export class TetrisGame {
       }
     }
 
-    if (this.paused || this.gameOver) this.drawOverlay(this.gameOver ? 'Игра окончена' : 'Пауза');
+    if (this.paused) this.drawOverlay('Пауза', 'Нажми «Продолжить»');
+    if (this.gameOver) this.drawOverlay('Игра окончена', 'Нажми «Снова»');
   }
 
   drawGhost() {
@@ -332,7 +343,7 @@ export class TetrisGame {
     this.ctx.globalAlpha = 1;
   }
 
-  drawOverlay(text) {
+  drawOverlay(text, subtitle) {
     this.ctx.fillStyle = 'rgba(4, 16, 30, 0.72)';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.fillStyle = '#ebfbff';
@@ -341,7 +352,7 @@ export class TetrisGame {
     this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2 - 8);
     this.ctx.font = '12px system-ui';
     this.ctx.fillStyle = '#88a8bc';
-    this.ctx.fillText('Нажми Старт', this.canvas.width / 2, this.canvas.height / 2 + 18);
+    this.ctx.fillText(subtitle, this.canvas.width / 2, this.canvas.height / 2 + 18);
   }
 
   drawNext() {
@@ -349,7 +360,7 @@ export class TetrisGame {
     ctx.clearRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
     ctx.fillStyle = '#061120';
     ctx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
-    const size = 20;
+    const size = 16;
     const shape = this.nextPiece.shape;
     const offsetX = Math.floor((this.nextCanvas.width / size - shape[0].length) / 2);
     const offsetY = Math.floor((this.nextCanvas.height / size - shape.length) / 2);

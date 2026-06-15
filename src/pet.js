@@ -17,31 +17,41 @@ const thoughts = {
   dirty: ['стекло мутное...', 'нужна губка', 'я хочу чистую воду'],
   tired: ['я немного посплю', 'энергии мало', 'приглуши лампу...'],
   bored: ['давай игрушку?', 'очисти 2 линии!', 'мне скучно без комбо'],
+  dead: ['...', 'аквариум опустел', 'начать новую жизнь?'],
 };
 
 export function renderPet(elements) {
   const state = getState();
   const pet = state.pet;
 
-  elements.petName.textContent = pet.name;
+  elements.petName.textContent = pet.alive ? pet.name : `${pet.name} · финал`;
   elements.hunger.value = pet.hunger;
   elements.mood.value = pet.mood;
   elements.clean.value = pet.clean;
   elements.energy.value = pet.energy;
-  elements.hungerText.textContent = pet.hunger;
-  elements.moodText.textContent = pet.mood;
-  elements.cleanText.textContent = pet.clean;
-  elements.energyText.textContent = pet.energy;
+  elements.hungerText.textContent = Math.round(pet.hunger);
+  elements.moodText.textContent = Math.round(pet.mood);
+  elements.cleanText.textContent = Math.round(pet.clean);
+  elements.energyText.textContent = Math.round(pet.energy);
 
-  elements.petSprite.classList.toggle('sad', pet.hunger < 30 || pet.mood < 30 || pet.clean < 25);
-  elements.petSprite.classList.toggle('sleepy', pet.energy < 24);
+  elements.petSprite.classList.toggle('sad', pet.alive && (pet.hunger < 30 || pet.mood < 30 || pet.clean < 25));
+  elements.petSprite.classList.toggle('sleepy', pet.alive && pet.energy < 24);
+  elements.petSprite.classList.toggle('dead', !pet.alive);
   elements.petThought.textContent = pickThought(pet);
 
   elements.decorOne.style.display = state.ownedDecor.includes('coral_lamp') ? 'block' : 'none';
   elements.decorTwo.style.display = state.ownedDecor.includes('retro_shell') ? 'block' : 'none';
+
+  if (elements.petDeathOverlay) elements.petDeathOverlay.hidden = pet.alive;
+  if (elements.petActionButtons) {
+    elements.petActionButtons.forEach((button) => {
+      button.disabled = !pet.alive;
+    });
+  }
 }
 
 function pickThought(pet) {
+  if (!pet.alive) return thoughts.dead[Math.floor(Date.now() / 5000) % thoughts.dead.length];
   let pool = thoughts.happy;
   if (pet.hunger < 35) pool = thoughts.hungry;
   else if (pet.clean < 35) pool = thoughts.dirty;
@@ -50,7 +60,14 @@ function pickThought(pet) {
   return pool[Math.floor(Date.now() / 5000) % pool.length];
 }
 
+function canCare(notify) {
+  if (getState().pet.alive) return true;
+  notify('Питомец не жив. Начни новую жизнь в аквариуме.');
+  return false;
+}
+
 export function feedPet(notify) {
+  if (!canCare(notify)) return;
   const item = SHOP_ITEMS.find((entry) => entry.id === 'food_flakes');
   if (!consumeInventory(item.id)) {
     notify('Нет еды. Купи хлопья в магазине.');
@@ -61,6 +78,7 @@ export function feedPet(notify) {
 }
 
 export function cleanPet(notify) {
+  if (!canCare(notify)) return;
   const item = SHOP_ITEMS.find((entry) => entry.id === 'clean_sponge');
   if (!consumeInventory(item.id)) {
     notify('Нет губки. Купи её в магазине.');
@@ -71,6 +89,7 @@ export function cleanPet(notify) {
 }
 
 export function playWithPet(notify) {
+  if (!canCare(notify)) return;
   const item = SHOP_ITEMS.find((entry) => entry.id === 'bubble_toy');
   if (!consumeInventory(item.id)) {
     notify('Нет игрушки. Купи пузырьковую игрушку.');
@@ -82,6 +101,7 @@ export function playWithPet(notify) {
 }
 
 export function putPetToSleep(notify) {
+  if (!canCare(notify)) return;
   mutatePet({ energy: 24, hunger: -4, mood: 3 });
   notify('Питомец отдохнул.');
 }

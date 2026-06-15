@@ -11,9 +11,9 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div>
+        <div class="brand">
           <p class="eyebrow">Telegram Mini Game</p>
-          <h1>TetraPet Aquarium</h1>
+          <h1>TetraPet</h1>
         </div>
         <div class="topbar-actions">
           <span class="storage-badge" id="storageStatus" title="Состояние сохранения">localStorage</span>
@@ -26,34 +26,48 @@
 
       <main class="layout">
         <section class="panel game-panel" data-tab-panel="game">
-          <div class="screen-title">
-            <div>
-              <p class="eyebrow">Тетрис-ферма</p>
+          <div class="game-toolbar">
+            <div class="game-title">
+              <p class="eyebrow">Тетрис-аквариум</p>
               <h2 id="gameStatus">Готов к игре</h2>
             </div>
-            <button class="primary-btn" id="startBtn">Старт</button>
+            <div class="game-actions">
+              <button class="primary-btn" id="startBtn">Старт</button>
+              <button class="ghost-btn" id="resetBtn" title="Сбросить текущую партию">Сброс</button>
+            </div>
           </div>
 
-          <div class="game-wrap">
+          <div class="game-hud" aria-label="Статистика тетриса">
+            <div class="hud-stat"><span>Очки</span><strong id="score">0</strong></div>
+            <div class="hud-stat"><span>Линии</span><strong id="lines">0</strong></div>
+            <div class="hud-stat"><span>Комбо</span><strong id="combo">0</strong></div>
+            <div class="hud-stat"><span>Рекорд</span><strong id="bestScore">0</strong></div>
+            <div class="hud-next">
+              <span>NEXT</span>
+              <canvas id="nextCanvas" width="64" height="64" aria-label="Следующая фигура"></canvas>
+            </div>
+          </div>
+
+          <div class="game-stage">
             <canvas id="gameCanvas" width="240" height="480" aria-label="Игровое поле тетриса"></canvas>
-            <aside class="stats-card">
-              <div class="mini-lcd">
-                <span>Следующая</span>
-                <canvas id="nextCanvas" width="96" height="96"></canvas>
-              </div>
-              <div class="stat-row"><span>Очки</span><strong id="score">0</strong></div>
-              <div class="stat-row"><span>Линии</span><strong id="lines">0</strong></div>
-              <div class="stat-row"><span>Комбо</span><strong id="combo">0</strong></div>
-              <div class="buff" id="buffLabel">Бонус питомца: нет</div>
-            </aside>
+            <p class="touch-hint" id="touchHint">Тап — поворот · веди вбок — движение · длинный свайп вниз — бросок</p>
           </div>
 
-          <div class="controls" aria-label="Управление">
+          <div class="last-run" id="lastRunResult" hidden></div>
+
+          <div class="game-settings" aria-label="Мини-настройки управления">
+            <button id="toggleControlsBtn" type="button">Кнопки: выкл</button>
+            <button id="invertControlsBtn" type="button">Инверсия: выкл</button>
+            <button id="touchControlsBtn" type="button">Тач: вкл</button>
+            <button id="swipeDropBtn" type="button">Свайп вниз: вкл</button>
+          </div>
+
+          <div class="controls" id="controlsPanel" aria-label="Запасные кнопки управления" hidden>
             <button data-action="left">←</button>
             <button data-action="rotate">↻</button>
             <button data-action="right">→</button>
             <button data-action="down">↓</button>
-            <button data-action="drop" class="wide">Сбросить</button>
+            <button data-action="drop" class="wide">Бросить вниз</button>
           </div>
         </section>
 
@@ -65,6 +79,8 @@
             </div>
             <button class="ghost-btn" id="renameBtn">Имя</button>
           </div>
+
+          <div class="offline-notice" id="offlineNotice" hidden></div>
 
           <div class="aquarium" id="aquarium">
             <div class="water-glow"></div>
@@ -79,16 +95,21 @@
               <span class="mouth"></span>
             </div>
             <div class="pet-thought" id="petThought">сыграй пару линий?</div>
+            <div class="pet-death-overlay" id="petDeathOverlay" hidden>
+              <strong>Аквариум опустел</strong>
+              <p>Питомец не пережил долгий критический уход. Можно начать новую жизнь.</p>
+              <button class="primary-btn" id="newPetBtn">Новый питомец</button>
+            </div>
           </div>
 
           <div class="meters">
-            <label>Сытость <meter id="hunger" min="0" max="100"></meter><span id="hungerText">0</span></label>
-            <label>Настроение <meter id="mood" min="0" max="100"></meter><span id="moodText">0</span></label>
-            <label>Чистота <meter id="clean" min="0" max="100"></meter><span id="cleanText">0</span></label>
-            <label>Энергия <meter id="energy" min="0" max="100"></meter><span id="energyText">0</span></label>
+            <label>Сытость <meter id="hunger" min="0" max="100" low="30" high="70" optimum="85"></meter><span id="hungerText">0</span></label>
+            <label>Настроение <meter id="mood" min="0" max="100" low="30" high="70" optimum="85"></meter><span id="moodText">0</span></label>
+            <label>Чистота <meter id="clean" min="0" max="100" low="30" high="70" optimum="85"></meter><span id="cleanText">0</span></label>
+            <label>Энергия <meter id="energy" min="0" max="100" low="25" high="70" optimum="85"></meter><span id="energyText">0</span></label>
           </div>
 
-          <div class="action-grid">
+          <div class="action-grid" id="petActions">
             <button id="feedBtn">Покормить</button>
             <button id="cleanBtn">Почистить</button>
             <button id="playBtn">Поиграть</button>

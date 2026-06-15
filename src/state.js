@@ -3,6 +3,16 @@ const CLOUD_STORAGE_KEY = 'tetrapet_save_v1';
 const CLOUD_VALUE_LIMIT = 4096;
 const SAVE_DEBOUNCE_MS = 450;
 
+const HOUR = 60 * 60 * 1000;
+const DECAY = {
+  hungerPerHour: 2.15,
+  cleanPerHour: 1.65,
+  moodPerHour: 1.35,
+  energyRecoverPerHour: 4.4,
+  hungerDeathGraceHours: 8,
+  cleanDeathGraceHours: 12,
+};
+
 export const SHOP_ITEMS = [
   {
     id: 'food_flakes',
@@ -18,7 +28,7 @@ export const SHOP_ITEMS = [
     title: 'Пузырьковая игрушка',
     icon: '🫧',
     price: 12,
-    description: '+18 настроения и шанс на Bubble Fever.',
+    description: '+18 настроения и Bubble Fever на 45 секунд.',
     type: 'consumable',
     effect: { mood: 18, energy: -6, fever: 45 },
   },
@@ -51,31 +61,48 @@ export const SHOP_ITEMS = [
   },
 ];
 
-const defaultState = () => ({
-  version: 2,
-  coins: 0,
-  totalCoins: 0,
-  score: 0,
-  lines: 0,
-  games: 0,
-  bestScore: 0,
-  activeBuff: null,
-  buffEndsAt: 0,
-  inventory: {
-    food_flakes: 2,
-    bubble_toy: 0,
-    clean_sponge: 1,
-  },
-  ownedDecor: [],
-  pet: {
+function createPet() {
+  const now = Date.now();
+  return {
     name: 'Бульк',
+    alive: true,
+    bornAt: now,
+    diedAt: 0,
     hunger: 74,
     mood: 72,
     clean: 78,
     energy: 66,
-    lastTick: Date.now(),
-  },
-});
+    lastTick: now,
+    lastSeenAt: now,
+  };
+}
+
+function defaultState() {
+  return {
+    version: 3,
+    coins: 0,
+    totalCoins: 0,
+    score: 0,
+    lines: 0,
+    games: 0,
+    bestScore: 0,
+    activeBuff: null,
+    buffEndsAt: 0,
+    inventory: {
+      food_flakes: 2,
+      bubble_toy: 0,
+      clean_sponge: 1,
+    },
+    ownedDecor: [],
+    settings: {
+      showControls: false,
+      invertHorizontal: false,
+      touchControls: true,
+      swipeDrop: true,
+    },
+    pet: createPet(),
+  };
+}
 
 let state = defaultState();
 let initialized = false;
@@ -83,6 +110,7 @@ let saveTimer = null;
 let lastCloudSaveError = null;
 let storageMode = 'local';
 let cloudAvailable = false;
+let offlineReport = null;
 
 function getTelegramCloudStorage() {
   const webApp = window.Telegram?.WebApp;
@@ -139,7 +167,7 @@ export async function initStateStorage() {
 
   const loadedRaw = cloudRaw || localRaw;
   state = mergeState(defaultState(), parseSave(loadedRaw));
-  applyOfflineDecay(state);
+  offlineReport = applyOfflineDecay(state, { reason: 'boot' });
   initialized = true;
 
   // Если игрок раньше запускал игру вне Telegram, переносим локальный сейв в CloudStorage.
@@ -179,33 +207,119 @@ function saveRawLocal(raw) {
 
 function mergeState(base, loaded) {
   if (!loaded || typeof loaded !== 'object') return base;
-  return {
+  const merged = {
     ...base,
     ...loaded,
     inventory: { ...base.inventory, ...(loaded.inventory || {}) },
     ownedDecor: Array.isArray(loaded.ownedDecor) ? loaded.ownedDecor : [],
+    settings: { ...base.settings, ...(loaded.settings || {}) },
     pet: { ...base.pet, ...(loaded.pet || {}) },
   };
+
+  merged.version = 3;
+  merged.pet.alive = merged.pet.alive !== false;
+  merged.pet.diedAt = Number(merged.pet.diedAt || 0);
+  merged.pet.bornAt = Number(merged.pet.bornAt || Date.now());
+  merged.pet.lastTick = Number(merged.pet.lastTick || Date.now());
+  merged.pet.lastSeenAt = Number(merged.pet.lastSeenAt || merged.pet.lastTick);
+  merged.pet.hunger = clamp(merged.pet.hunger);
+  merged.pet.mood = clamp(merged.pet.mood);
+  merged.pet.clean = clamp(merged.pet.clean);
+  merged.pet.energy = clamp(merged.pet.energy);
+  return merged;
 }
 
 function clamp(value, min = 0, max = 100) {
-  return Math.max(min, Math.min(max, Math.round(value)));
+  const safe = Math.max(min, Math.min(max, Number(value) || 0));
+  return Math.round(safe * 100) / 100;
 }
 
-function applyOfflineDecay(target) {
+function formatDuration(minutes) {
+  if (minutes < 60) return `${minutes} мин.`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 24) return rest ? `${hours} ч ${rest} мин.` : `${hours} ч`;
+  const days = Math.floor(hours / 24);
+  const dayHours = hours % 24;
+  return dayHours ? `${days} д ${dayHours} ч` : `${days} д`;
+}
+
+function timeToZeroHours(value, drainPerHour) {
+  if (value <= 0) return 0;
+  return value / Math.max(0.0001, drainPerHour);
+}
+
+function applyOfflineDecay(target, options = {}) {
   const now = Date.now();
-  const lastTick = target.pet.lastTick || now;
-  const minutes = Math.max(0, Math.floor((now - lastTick) / 60000));
-  if (!minutes) return;
+  const pet = target.pet;
+  const lastTick = pet.lastTick || now;
+  const elapsedMs = Math.max(0, now - lastTick);
+  const elapsedMinutes = Math.floor(elapsedMs / 60000);
+  if (!elapsedMinutes) {
+    pet.lastSeenAt = now;
+    return null;
+  }
 
+  const report = {
+    reason: options.reason || 'tick',
+    minutes: elapsedMinutes,
+    durationText: formatDuration(elapsedMinutes),
+    died: false,
+    critical: false,
+    message: '',
+  };
+
+  if (!pet.alive) {
+    pet.lastTick = now;
+    pet.lastSeenAt = now;
+    report.critical = true;
+    report.message = 'Питомец уже не жив. Можно начать новую жизнь.';
+    return report;
+  }
+
+  const hours = elapsedMs / HOUR;
   const hasCoral = target.ownedDecor.includes('coral_lamp');
-  const moodDrain = hasCoral ? 0.18 : 0.3;
+  const moodDrain = hasCoral ? DECAY.moodPerHour * 0.62 : DECAY.moodPerHour;
+  const before = {
+    hunger: pet.hunger,
+    clean: pet.clean,
+    mood: pet.mood,
+    energy: pet.energy,
+  };
 
-  target.pet.hunger = clamp(target.pet.hunger - minutes * 0.42);
-  target.pet.clean = clamp(target.pet.clean - minutes * 0.25);
-  target.pet.mood = clamp(target.pet.mood - minutes * moodDrain);
-  target.pet.energy = clamp(target.pet.energy + minutes * 0.28);
-  target.pet.lastTick = now;
+  const hungerDeathAt = timeToZeroHours(before.hunger, DECAY.hungerPerHour) + DECAY.hungerDeathGraceHours;
+  const cleanDeathAt = timeToZeroHours(before.clean, DECAY.cleanPerHour) + DECAY.cleanDeathGraceHours;
+
+  pet.hunger = clamp(before.hunger - hours * DECAY.hungerPerHour);
+  pet.clean = clamp(before.clean - hours * DECAY.cleanPerHour);
+  pet.mood = clamp(before.mood - hours * moodDrain);
+  pet.energy = clamp(before.energy + hours * DECAY.energyRecoverPerHour);
+  pet.lastTick = now;
+  pet.lastSeenAt = now;
+
+  const diedFromHunger = hours >= hungerDeathAt;
+  const diedFromClean = hours >= cleanDeathAt;
+  if (diedFromHunger || diedFromClean) {
+    pet.alive = false;
+    pet.diedAt = now;
+    pet.hunger = 0;
+    pet.mood = 0;
+    pet.clean = 0;
+    pet.energy = 0;
+    report.died = true;
+    report.critical = true;
+    report.message = `Пока тебя не было ${report.durationText}, питомец не выдержал. Можно начать новую жизнь.`;
+    return report;
+  }
+
+  report.critical = pet.hunger < 25 || pet.clean < 25 || pet.mood < 25;
+  if (report.critical) {
+    report.message = `Пока тебя не было ${report.durationText}, питомец сильно соскучился. Проверь еду, воду и настроение.`;
+  } else if (elapsedMinutes >= 120) {
+    report.message = `Пока тебя не было ${report.durationText}, питомец жил своей жизнью. Характеристики пересчитаны.`;
+  }
+
+  return report.message ? report : null;
 }
 
 function serializeState() {
@@ -240,9 +354,21 @@ export function getStorageStatus() {
   };
 }
 
+export function getOfflineReport() {
+  return offlineReport;
+}
+
+export function clearOfflineReport() {
+  offlineReport = null;
+}
+
 export function saveState(options = {}) {
   if (!initialized) return Promise.resolve(false);
-  state.pet.lastTick = Date.now();
+  if (state.pet) {
+    const now = Date.now();
+    state.pet.lastTick = now;
+    state.pet.lastSeenAt = now;
+  }
   const raw = serializeState();
   saveRawLocal(raw);
 
@@ -274,11 +400,13 @@ export function spendCoins(amount) {
 }
 
 export function mutatePet(delta) {
+  if (!state.pet.alive) return false;
   state.pet.hunger = clamp(state.pet.hunger + (delta.hunger || 0));
   state.pet.mood = clamp(state.pet.mood + (delta.mood || 0));
   state.pet.clean = clamp(state.pet.clean + (delta.clean || 0));
   state.pet.energy = clamp(state.pet.energy + (delta.energy || 0));
   saveState();
+  return true;
 }
 
 export function addInventory(itemId, amount = 1) {
@@ -307,10 +435,12 @@ export function setBuff(type, seconds) {
 }
 
 export function getActiveBuff() {
-  if (!state.activeBuff || Date.now() > state.buffEndsAt) {
+  if (!state.activeBuff) return null;
+  if (Date.now() > state.buffEndsAt) {
     state.activeBuff = null;
     state.buffEndsAt = 0;
     saveState();
+    return null;
   }
   return state.activeBuff;
 }
@@ -330,7 +460,41 @@ export function renamePet(name) {
   saveState({ immediate: true });
 }
 
-export function tickPetMinute() {
-  applyOfflineDecay(state);
+export function getControlSettings() {
+  return state.settings;
+}
+
+export function setControlSetting(key, value) {
+  if (!(key in state.settings)) return;
+  state.settings[key] = Boolean(value);
   saveState();
+}
+
+export function startNewPetLife() {
+  const name = state.pet.name || 'Бульк';
+  state.pet = createPet();
+  state.pet.name = name;
+  state.inventory = {
+    food_flakes: 2,
+    bubble_toy: 0,
+    clean_sponge: 1,
+  };
+  state.ownedDecor = [];
+  state.activeBuff = null;
+  state.buffEndsAt = 0;
+  offlineReport = {
+    minutes: 0,
+    durationText: '',
+    died: false,
+    critical: false,
+    message: 'Новый питомец появился в аквариуме.',
+  };
+  saveState({ immediate: true });
+}
+
+export function tickPetMinute() {
+  const report = applyOfflineDecay(state, { reason: 'tick' });
+  if (report?.died) offlineReport = report;
+  saveState();
+  return report;
 }
